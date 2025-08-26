@@ -37,16 +37,47 @@
         }
         return gk_fileData[filename] || "";
         }
-        </script><!DOCTYPE html>
+        </script><script type="text/javascript">
+  var gk_isXlsx = false;
+  var gk_xlsxFileLookup = {};
+  var gk_fileData = {};
+  function filledCell(cell) {
+    return cell !== '' && cell != null;
+  }
+  function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+      try {
+        var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+        var firstSheetName = workbook.SheetNames[0];
+        var worksheet = workbook.Sheets[firstSheetName];
+        var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+        var filteredData = jsonData.filter(row => row.some(filledCell));
+        var headerRowIndex = filteredData.findIndex((row, index) =>
+          row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+        );
+        if (headerRowIndex === -1 || headerRowIndex > 25) {
+          headerRowIndex = 0;
+        }
+        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+        return csv;
+      } catch (e) {
+        console.error(e);
+        return "";
+      }
+    }
+    return gk_fileData[filename] || "";
+  }
+</script><!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculadora de Dimensionamento de Bomba – HVAC (água quente/fria/recirculação)</title>
+  <title>Calculadora de Dimensionamento de Bomba – água quente/fria/recirculação</title>
   <style>
     :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
     * { box-sizing: border-box }
-    body { margin: 0; background: linear-gradient(180deg,#0b1025,#0f172a 35%,#0b1025); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif }
+    body { margin: 0; background: linear-gradient(180deg,#0b1025,#0f172a 35%,#0b1025); color: var(--ink); font: 16px/1.4 Arial, Helvetica, sans-serif }
     header { gap: 16px; padding: 32px 16px; background: rgba(59, 130, 246, 0.15); border-bottom: 1px solid rgba(148,163,184,.12); min-height: 80px; text-align: center; }
     .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px }
     h1 { margin: 0; font-size: 20px; font-weight: 800; text-align: center; }
@@ -74,7 +105,7 @@
     .error { color: var(--bad); font-size: 13px; margin-top: 4px; }
     footer { text-align: center; padding: 16px 0; color: var(--muted); font-size: 14px; }
     .memorial { display: none; }
-    .memorial-content { font-size: 12px; line-height: 1.5; padding: 20px; }
+    .memorial-content { font-size: 12px; line-height: 1.5; padding: 20px; text-align: center; }
     .memorial-content h2 { font-size: 16px; margin-bottom: 10px; }
     .memorial-content ul { list-style-type: disc; padding-left: 20px; }
     .memorial-content li { margin-bottom: 5px; }
@@ -84,7 +115,7 @@
   <header class="no-print">
     <div style="display: flex; align-items: center; justify-content: center; gap: 12px">
       <img src="logobalbi.png" alt="Balbi Engenharia" style="height: 44px; width: auto; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.35)">
-      <h1>Calculadora de Dimensionamento de Bomba – HVAC (água quente/fria/recirculação)</h1>
+      <h1>Calculadora de Dimensionamento de Bomba – água quente/fria/recirculação</h1>
     </div>
     <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: center">
       <button class="btn" type="button" id="btnPrint">Imprimir / PDF</button>
@@ -364,13 +395,13 @@
     </div>
   </div>
   <footer>
-    Vinícius Balbi - Projetista HVAC
+    Vinícius Balbi - Projetista
   </footer>
 
   <div id="memorial" class="memorial">
     <div class="memorial-content">
-      <h2>Memorial de Cálculo - Dimensionamento de Bomba HVAC</h2>
-      <p><strong>Data:</strong> 25/08/2025 <strong>Hora:</strong> 23:17</p>
+      <h2>Memorial de Cálculo - Dimensionamento de Bomba</h2>
+      <p><strong>Data:</strong> <span id="currentDate"></span> <strong>Hora:</strong> <span id="currentTime"></span></p>
       <h3>Dados de Entrada</h3>
       <ul id="memorial-inputs"></ul>
       <h3>Propriedades da Água</h3>
@@ -447,6 +478,15 @@
     const $ = id => document.getElementById(id);
     const out = $('out');
     const status = document.querySelector('.status');
+
+    // Função para atualizar data e hora
+    function updateDateTime() {
+      const now = new Date();
+      const date = now.toLocaleDateString('pt-BR');
+      const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      $('currentDate').textContent = date;
+      $('currentTime').textContent = time;
+    }
 
     function updateForm() {
       const serviceType = $('serviceType').value;
@@ -609,7 +649,7 @@
     $('calc').addEventListener('click', calculate);
     $('applyPreset').addEventListener('click', applyPreset);
 
-    // Função para abrir o memorial em uma nova janela HTML
+    // Função para abrir o memorial em uma nova janela HTML com data e hora dinâmicas
     $('btnMemorial').addEventListener('click', () => {
       console.log('Botão Memorial clicado');
       calculate(); // Garante que os cálculos estejam atualizados
@@ -669,26 +709,68 @@
       const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)` : '';
       const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)` : '';
 
-      // Criando o conteúdo do memorial em HTML
+      // Obtendo data e hora atuais
+      const now = new Date();
+      const date = now.toLocaleDateString('pt-BR');
+      const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Criando o conteúdo do memorial em HTML com data e hora dinâmicas
       const memorialContent = `
         <!DOCTYPE html>
         <html lang="pt-BR">
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Memorial de Cálculo - Dimensionamento de Bomba HVAC</title>
+          <title>Memorial de Cálculo - Dimensionamento de Bomba</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
-            h2 { font-size: 20px; margin-bottom: 10px; }
-            h3 { font-size: 16px; margin-top: 15px; }
-            ul { padding-left: 20px; }
-            li { margin-bottom: 5px; }
-            .highlight { color: #007BFF; }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 12pt;
+              line-height: 1.6;
+              color: #333;
+              padding: 25mm 20mm;
+              max-width: 210mm;
+              margin: 0 auto;
+              background: #fff;
+              text-align: center;
+            }
+            h2 {
+              font-size: 20pt;
+              color: #1a3c5e;
+              border-bottom: 2px solid #1a3c5e;
+              padding-bottom: 5px;
+              margin-bottom: 15px;
+            }
+            h3 {
+              font-size: 14pt;
+              color: #2c5282;
+              margin-top: 20px;
+              margin-bottom: 10px;
+            }
+            ul {
+              padding-left: 20px;
+              text-align: left;
+              display: inline-block;
+            }
+            li {
+              margin-bottom: 8px;
+            }
+            strong {
+              color: #1a3c5e;
+            }
+            .highlight {
+              color: #2c5282;
+              font-weight: bold;
+            }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 25mm; }
+            }
           </style>
         </head>
         <body>
-          <h2>Memorial de Cálculo - Dimensionamento de Bomba HVAC</h2>
-          <p><strong>Data:</strong> 25/08/2025 <strong>Hora:</strong> 23:17</p>
+          <h2>Memorial de Cálculo - Dimensionamento de Bomba</h2>
+          <p><strong>Data:</strong> ${date} <strong>Hora:</strong> ${time}</p>
           <h3>Dados de Entrada</h3>
           <ul>
             <li>Tipo de Serviço: ${serviceType}</li>
@@ -782,6 +864,7 @@
     updateForm();
     updateRoughness();
     calculate();
+    updateDateTime(); // Inicializa a data e hora no carregamento
   </script>
 </body>
 </html>
