@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calculadora de Dimensionamento de Bomba – água quente/fria/recirculação</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
     * { box-sizing: border-box }
@@ -39,6 +40,9 @@
     .memorial-content h2 { font-size: 16px; margin-bottom: 10px; }
     .memorial-content ul { list-style-type: disc; padding-left: 20px; }
     .memorial-content li { margin-bottom: 5px; }
+    .suggestion { margin-top: 12px; }
+    .suggestion ul { list-style-type: disc; padding-left: 20px; }
+    .suggestion li { margin-bottom: 5px; }
   </style>
 </head>
 <body>
@@ -48,8 +52,7 @@
       <h1>Calculadora de Dimensionamento de Bomba – água quente/fria/recirculação</h1>
     </div>
     <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: center">
-      <button class="btn" type="button" id="btnPrint">Imprimir / PDF</button>
-      <button class="btn" type="button" id="btnMemorial">Gerar Memorial de Cálculo</button>
+      <button class="btn" type="button" id="btnMemorial">Gerar Memorial de Cálculo (PDF)</button>
     </div>
   </header>
   <div class="wrap">
@@ -300,12 +303,12 @@
               </div>
               <div>
                 <label for="suctionVelocityTarget">Alvo de velocidade sucção (m/s)</label>
-                <input id="suctionVelocityTarget" type="number" step="0.1" value="0.1" min="0.1" required />
+                <input id="suctionVelocityTarget" type="number" step="0.1" value="1.5" min="0.1" required />
                 <div class="status">ASHRAE recomenda 1,5–2,5 m/s.</div>
               </div>
               <div>
                 <label for="dischargeVelocityTarget">Alvo de velocidade recalque (m/s)</label>
-                <input id="dischargeVelocityTarget" type="number" step="0.1" value="0.1" min="0.1" required />
+                <input id="dischargeVelocityTarget" type="number" step="0.1" value="2.0" min="0.1" required />
                 <div class="status">ASHRAE recomenda 2,0–3,0 m/s.</div>
               </div>
             </div>
@@ -321,10 +324,13 @@
           <summary>Propriedades da água (estimadas pela temperatura)</summary>
           <pre id="props" class="mono" style="white-space: pre-wrap"></pre>
         </details>
-        <details style="margin-top: 12px">
-          <summary>Sugestão de Modelos de Bomba</summary>
-          <div id="pumpSuggestions" class="mono" style="white-space: pre-wrap"></div>
-        </details>
+        <div class="suggestion">
+          <details>
+            <summary>Sugestões de Bombas</summary>
+            <div id="pumpSuggestions">—</div>
+            <p style="font-size: 12px; color: var(--muted);">Lista atualizada em agosto de 2025. Consulte catálogos dos fabricantes para especificações detalhadas.</p>
+          </details>
+        </div>
       </div>
     </div>
   </div>
@@ -342,27 +348,25 @@
       <ul id="memorial-props"></ul>
       <h3>Resultados do Cálculo</h3>
       <ul id="memorial-results"></ul>
-      <h3>Sugestão de Modelos de Bomba</h3>
-      <ul id="memorial-pump-suggestions"></ul>
       <h3>Cálculos e Fórmulas</h3>
       <ul>
-        <li><strong>Vazão (Recirculação):</strong> Q = max((q * L) / (1000 * cp * ΔT) * 3600, V * n)
-          <ul><li>Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h⁻¹).</li>
+        <li><strong>Vazão (Recirculação):</strong> Q = max((q * L) / (1000 * cp * Delta T) * 3600, V * n)
+          <ul><li>Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), Delta T = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h⁻¹).</li>
             <li>Fonte: ASHRAE Handbook - HVAC Systems and Equipment.</li></ul>
         </li>
-        <li><strong>Vazão (Consumo):</strong> Q = (P * 1000 * S) / (1000 * cp * ΔT) * 3600
-          <ul><li>Onde: P = Carga térmica (kW), S = Fator de simultaneidade, cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C).</li>
+        <li><strong>Vazão (Consumo):</strong> Q = (P * 1000 * S) / (1000 * cp * Delta T) * 3600
+          <ul><li>Onde: P = Carga térmica (kW), S = Fator de simultaneidade, cp = Calor específico (J/(kg·K)), Delta T = Variação de temperatura (°C).</li>
             <li>Fonte: ABNT NBR 16401-1.</li></ul>
         </li>
         <li><strong>Altura Manométrica Total:</strong> Ht = Hs + hf + hm + he
           <ul><li>Onde: Hs = Altura estática (m), hf = Perda por fricção (m), hm = Perdas menores (m), he = Queda em equipamentos (m).</li>
             <li>Fonte: Darcy-Weisbach Equation, ASHRAE.</li></ul>
         </li>
-        <li><strong>Potência:</strong> P = (ρ * g * Q * Ht) / (η * 1000)
-          <ul><li>Onde: ρ = Densidade (kg/m³), g = Aceleração gravitacional (m/s²), Q = Vazão (m³/s), Ht = Altura total (m), η = Eficiência.</li>
+        <li><strong>Potência:</strong> P = (rho * g * Q * Ht) / (eta * 1000)
+          <ul><li>Onde: rho = Densidade (kg/m³), g = Aceleração gravitacional (m/s²), Q = Vazão (m³/s), Ht = Altura total (m), eta = Eficiência.</li>
             <li>Fonte: ABNT NBR 11381.</li></ul>
         </li>
-        <li><strong>NPSHa:</strong> NPSHa = (Patm / (ρ * g)) + hs - (Pv / (ρ * g)) - hfs - (vs² / (2 * g))
+        <li><strong>NPSHa:</strong> NPSHa = (Patm / (rho * g)) + hs - (Pv / (rho * g)) - hfs - (vs² / (2 * g))
           <ul><li>Onde: Patm = Pressão atmosférica (Pa), hs = Altura de sucção (m), Pv = Pressão de vapor (Pa), hfs = Perda por fricção na sucção (m), vs = Velocidade na sucção (m/s).</li>
             <li>Fonte: ASHRAE Handbook - Pumping Systems.</li></ul>
         </li>
@@ -371,6 +375,7 @@
       <ul>
         <li>ABNT NBR 16401-1: Instalações de ar-condicionado - Sistemas centrais e unitários.</li>
         <li>ABNT NBR 11381: Dimensionamento de sistemas de bombeamento.</li>
+        <li>ABNT NBR 10897: Sistemas de proteção contra incêndio por chuveiros automáticos - Requisitos.</li>
         <li>ASHRAE Handbook - HVAC Systems and Equipment (2020).</li>
         <li>ASHRAE Handbook - Pumping Systems (2019).</li>
       </ul>
@@ -408,96 +413,21 @@
       }
       return gk_fileData[filename] || "";
     }
-  </script>
-  <script>
+
     const g = 9.80665;
     const $ = id => document.getElementById(id);
     const out = $('out');
     const status = document.querySelector('.status');
 
-    // Banco de dados de bombas (exemplo simplificado)
-    const pumpsDatabase = [
-      {
-        manufacturer: "Grundfos",
-        model: "NB 80-200/219",
-        flowMin: 40,
-        flowMax: 60,
-        headMin: 35,
-        headMax: 50,
-        power: 11,
-        npshr: 2.5,
-        efficiency: 80,
-        type: "Centrifugal, End-Suction"
-      },
-      {
-        manufacturer: "KSB",
-        model: "Etabloc 80-200",
-        flowMin: 45,
-        flowMax: 65,
-        headMin: 30,
-        headMax: 55,
-        power: 15,
-        npshr: 3.0,
-        efficiency: 82,
-        type: "Centrifugal, Close-Coupled"
-      },
-      {
-        manufacturer: "Wilo",
-        model: "Stratos 80/1-12",
-        flowMin: 50,
-        flowMax: 70,
-        headMin: 40,
-        headMax: 60,
-        power: 7.5,
-        npshr: 2.8,
-        efficiency: 85,
-        type: "Inline, High-Efficiency"
-      },
-      {
-        manufacturer: "Schneider",
-        model: "BC 65-250",
-        flowMin: 30,
-        flowMax: 50,
-        headMin: 25,
-        headMax: 45,
-        power: 9.2,
-        npshr: 2.7,
-        efficiency: 78,
-        type: "Centrifugal, End-Suction"
-      },
-      {
-        manufacturer: "Grundfos",
-        model: "CR 45-2",
-        flowMin: 35,
-        flowMax: 55,
-        headMin: 20,
-        headMax: 40,
-        power: 5.5,
-        npshr: 2.0,
-        efficiency: 79,
-        type: "Vertical Multistage"
-      }
-      // Adicione mais modelos conforme necessário
+    // Lista de bombas para sugestão
+    const pumpDatabase = [
+      { model: 'Grundfos CRN 45-2', flow: 146, head: 45, power: 7.5, material: 'Aço inox AISI 316', application: 'Água quente/recirculação' },
+      { model: 'KSB Etanorm SYT 50-200', flow: 100, head: 50, power: 5.5, material: 'Aço inox', application: 'Água quente' },
+      { model: 'Wilo Helix V 36', flow: 36, head: 40, power: 4, material: 'Aço inox', application: 'Água gelada/recirculação' },
+      { model: 'Grundfos NB 50-160', flow: 50, head: 25, power: 3, material: 'Ferro fundido', application: 'Água gelada' },
+      { model: 'Sulzer A 11-50', flow: 200, head: 60, power: 11, material: 'Aço carbono', application: 'Condenação' },
+      { model: 'Ruhrpumpen CPP 21', flow: 80, head: 30, power: 5.5, material: 'Aço inox', application: 'Água quente/recirculação' }
     ];
-
-    // Função para sugerir bombas com base nos cálculos
-    function suggestPump(flow, head, power, npsha, npshr) {
-      const suggestions = pumpsDatabase.filter(pump => {
-        const flowMatch = flow >= pump.flowMin && flow <= pump.flowMax;
-        const headMatch = head >= pump.headMin && head <= pump.headMax;
-        const powerMatch = pump.power >= power * 0.9; // Margem de 10% para potência
-        const npshMatch = pump.npshr <= npsha * 1.1; // NPSHr deve ser menor que 1.1 * NPSHa
-        return flowMatch && headMatch && powerMatch && npshMatch;
-      }).sort((a, b) => b.efficiency - a.efficiency); // Prioriza maior eficiência
-
-      if (suggestions.length === 0) {
-        return "Nenhum modelo encontrado no banco de dados. Consulte catálogos de fabricantes para seleção precisa.";
-      }
-
-      return suggestions.slice(0, 3).map(pump => // Limita a 3 sugestões
-        `${pump.manufacturer} ${pump.model} (${pump.type}): Vazão ${pump.flowMin}-${pump.flowMax} m³/h, Altura ${pump.headMin}-${pump.headMax} m, Potência ${pump.power} kW, NPSHr ${pump.npshr} m, Eficiência ${pump.efficiency}%`
-      ).join('\n');
-    }
 
     // Função para atualizar data e hora
     function updateDateTime() {
@@ -555,7 +485,23 @@
       calculate();
     }
 
-    $('btnPrint').addEventListener('click', () => window.print());
+    function suggestPumps(flow, head) {
+      const suggestions = pumpDatabase.filter(pump => 
+        pump.flow >= flow * 0.8 && pump.flow <= flow * 1.2 &&
+        pump.head >= head * 0.8 && pump.head <= head * 1.2
+      );
+      if (suggestions.length > 0) {
+        $('pumpSuggestions').innerHTML = `
+          <ul>
+            ${suggestions.map(pump => `
+              <li>${pump.model} - Vazão: ${pump.flow} m³/h, HMT: ${pump.head} m, Potência: ${pump.power} kW, Material: ${pump.material}, Aplicação: ${pump.application}</li>
+            `).join('')}
+          </ul>
+        `;
+      } else {
+        $('pumpSuggestions').innerHTML = 'Nenhuma bomba encontrada com os parâmetros calculados. Consulte catálogos dos fabricantes.';
+      }
+    }
 
     function calculate() {
       try {
@@ -630,7 +576,7 @@
 
         const atmPressure = 101325 * Math.pow(1 - 2.25577e-5 * elevation, 5.2559);
         const npsha = (atmPressure / (rho * g) + suctionHeight - Pv / (rho * g) - frictionHeadSuction - Math.pow(velocitySuction, 2) / (2 * g));
-        const npshaStatus = npsha < 0 ? '<span class="bad">Erro: NPSHa negativo.</span>' : (npsha < 1.1 * npshr ? '<span class="bad">Atenção: NPSHa < 1,1×NPSHr</span>' : '<span class="ok">OK</span>');
+        const npshaStatus = npsha < 0 ? 'Erro: NPSHa negativo.' : (npsha < 1.1 * npshr ? 'Atenção: NPSHa < 1,1×NPSHr' : 'OK');
 
         const frictionHead = (fSuction * suctionLength / suctionDiameter + fDischarge * dischargeLength / dischargeDiameter) * Math.pow(velocityDischarge, 2) / (2 * g);
         const minorLosses = (elbows * 0.9 + gateValves * 0.15 + checkValves * 2.0 + globeValves * 10 + ballValves * 0.05 + extraK) * Math.pow(velocityDischarge, 2) / (2 * g);
@@ -640,16 +586,13 @@
 
         const power = (rho * g * (flow / 3600) * finalHead) / (efficiency * 1000);
 
-        const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `<span class="warn">Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)</span>` : '';
-        const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `<span class="warn">Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)</span>` : '';
-
-        // Sugestão de bombas
-        const pumpSuggestions = suggestPump(flow, finalHead, power, npsha, npshr);
+        const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)` : '';
+        const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)` : '';
 
         out.innerHTML = `
           <table>
             <tr><th>Vazão (m³/h)</th><td>${flow.toFixed(2)}</td></tr>
-            <tr><th>Altura Manométrica Total (m)</th><td>${finalHead.toFixed(2)}</td></tr>
+            <tr><th>Altura Manométrica Total (m)</th><td>${finalHead.toFixed(2)} (inclui margem de ${headMargin * 100}%)</td></tr>
             <tr><th>Potência do Eixo (kW)</th><td>${power.toFixed(2)}</td></tr>
             <tr><th>Eficiência da Bomba (%)</th><td>${(efficiency * 100).toFixed(0)}</td></tr>
             <tr><th>Velocidade Sucção (m/s)</th><td>${velocitySuction.toFixed(2)} ${suctionVelocityAlert}</td></tr>
@@ -658,23 +601,17 @@
           </table>
         `;
         $('props').textContent = `Densidade: ${rho.toFixed(1)} kg/m³\nViscosidade: ${mu.toFixed(6)} Pa·s\nCalor específico: ${cp.toFixed(0)} J/(kg·K)\nPressão de vapor: ${Pv.toFixed(0)} Pa`;
-        $('pumpSuggestions').textContent = pumpSuggestions + '\n\nNota: Sugestões são indicativas. Consulte catálogos de fabricantes para seleção final.';
         status.textContent = 'Cálculo concluído.';
+
+        // Sugestão de bombas
+        suggestPumps(flow, finalHead);
       } catch (e) {
         status.textContent = 'Erro no cálculo: ' + e.message;
-        $('pumpSuggestions').textContent = 'Erro no cálculo. Não foi possível sugerir bombas.';
+        $('pumpSuggestions').innerHTML = 'Erro ao calcular. Nenhuma sugestão disponível.';
       }
     }
 
-    document.querySelectorAll('input, select').forEach(el => {
-      el.addEventListener('input', () => {
-        if ($('autoCalculate').checked) calculate();
-      });
-    });
-    $('calc').addEventListener('click', calculate);
-    $('applyPreset').addEventListener('click', applyPreset);
-
-    // Função para abrir o memorial em uma nova janela HTML com data e hora dinâmicas
+    // Função para gerar o memorial em PDF
     $('btnMemorial').addEventListener('click', () => {
       console.log('Botão Memorial clicado');
       calculate(); // Garante que os cálculos estejam atualizados
@@ -724,7 +661,7 @@
       const frictionHeadSuction = fSuction * suctionLength / suctionDiameter * Math.pow(velocitySuction, 2) / (2 * g);
       const atmPressure = 101325 * Math.pow(1 - 2.25577e-5 * elevation, 5.2559);
       const npsha = (atmPressure / (rho * g) + suctionHeight - Pv / (rho * g) - frictionHeadSuction - Math.pow(velocitySuction, 2) / (2 * g));
-      const npshaStatus = npsha < 0 ? '<span class="bad">Erro: NPSHa negativo.</span>' : (npsha < 1.1 * npshr ? '<span class="bad">Atenção: NPSHa < 1,1×NPSHr</span>' : '<span class="ok">OK</span>');
+      const npshaStatus = npsha < 0 ? 'Erro: NPSHa negativo.' : (npsha < 1.1 * npshr ? 'Atenção: NPSHa < 1,1×NPSHr' : 'OK');
       const frictionHead = (fSuction * suctionLength / suctionDiameter + fDischarge * dischargeLength / dischargeDiameter) * Math.pow(velocityDischarge, 2) / (2 * g);
       const minorLosses = (elbows * 0.9 + gateValves * 0.15 + checkValves * 2.0 + globeValves * 10 + ballValves * 0.05 + extraK) * Math.pow(velocityDischarge, 2) / (2 * g);
       const equipmentHead = (equipmentDrop + controlValveDrop) / (rho * g) * 1000;
@@ -734,177 +671,215 @@
       const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)` : '';
       const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)` : '';
 
-      // Sugestão de bombas para o memorial
-      const pumpSuggestions = suggestPump(flow, finalHead, power, npsha, npshr);
+      // Origem da vazão para rastreabilidade
+      let flowOrigin = '';
+      if (serviceType === 'recirc') {
+        const loopLength = parseFloat($('loopLength').value) || 0;
+        const thermalLoss = parseFloat($('thermalLoss').value) || 0;
+        const deltaT = parseFloat($('deltaT').value) || 0;
+        const tankVolume = parseFloat($('tankVolume').value) / 1000 || 0;
+        const turnoverRate = parseFloat($('turnoverRate').value) || 1;
+        const thermalFlow = (thermalLoss * loopLength) / (1000 * 4180 * deltaT) * 3600;
+        const tankFlow = tankVolume * turnoverRate;
+        flowOrigin = `Calculada como o máximo entre: (1) Perda térmica de ${thermalLoss} W/m × ${loopLength} m ÷ (1000 × 4180 × ${deltaT}) × 3600 = ${thermalFlow.toFixed(2)} m³/h; (2) Volume do tanque ${tankVolume} m³ × ${turnoverRate} h⁻¹ = ${tankFlow.toFixed(2)} m³/h.`;
+      } else if (serviceType === 'consumption') {
+        const thermalLoad = parseFloat($('thermalLoad').value) || 0;
+        const consumptionDeltaT = parseFloat($('consumptionDeltaT').value) || 0;
+        const simultaneidade = parseFloat($('simultaneidade').value) || 0;
+        flowOrigin = `Calculada como: Carga térmica ${thermalLoad} kW × 1000 × ${simultaneidade} ÷ (1000 × 4180 × ${consumptionDeltaT}) × 3600 = ${flow.toFixed(2)} m³/h.`;
+      } else if (serviceType === 'condensation') {
+        flowOrigin = `Baseada no fluxo mínimo do condensador: ${flow.toFixed(2)} m³/h.`;
+      }
 
       // Obtendo data e hora atuais
       const now = new Date();
       const date = now.toLocaleDateString('pt-BR');
       const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      // Criando o conteúdo do memorial em HTML com data e hora dinâmicas
-      const memorialContent = `
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Memorial de Cálculo - Dimensionamento de Bomba</title>
-          <style>
-            body {
-              font-family: Arial, Helvetica, sans-serif;
-              font-size: 12pt;
-              line-height: 1.6;
-              color: #333;
-              padding: 25mm 20mm;
-              max-width: 210mm;
-              margin: 0 auto;
-              background: #fff;
-              text-align: center;
-            }
-            h2 {
-              font-size: 20pt;
-              color: #1a3c5e;
-              border-bottom: 2px solid #1a3c5e;
-              padding-bottom: 5px;
-              margin-bottom: 15px;
-            }
-            h3 {
-              font-size: 14pt;
-              color: #2c5282;
-              margin-top: 20px;
-              margin-bottom: 10px;
-            }
-            ul {
-              padding-left: 20px;
-              text-align: left;
-              display: inline-block;
-            }
-            li {
-              margin-bottom: 8px;
-            }
-            strong {
-              color: #1a3c5e;
-            }
-            .highlight {
-              color: #2c5282;
-              font-weight: bold;
-            }
-            @media print {
-              body { padding: 0; }
-              @page { margin: 25mm; }
-            }
-          </style>
-        </head>
-        <body>
-          <h2>Memorial de Cálculo - Dimensionamento de Bomba</h2>
-          <p><strong>Data:</strong> ${date} <strong>Hora:</strong> ${time}</p>
-          <h3>Dados de Entrada</h3>
-          <ul>
-            <li>Tipo de Serviço: ${serviceType}</li>
-            <li>Temperatura da Água: ${waterTemp} °C</li>
-            <li>Vazão: ${flow.toFixed(2)} m³/h</li>
-            <li>Rendimento da Bomba: ${efficiency * 100} %</li>
-            <li>Margem de Projeto em H: ${headMargin * 100} % (aplicada na altura manométrica total de ${finalHead.toFixed(2)} m, inclui 15% para evitar subdimensionamento do motor)</li>
-            <li>Altura Estática: ${staticHead} m</li>
-            <li>Comprimento Sucção: ${suctionLength} m</li>
-            <li>Comprimento Recalque: ${dischargeLength} m</li>
-            <li>Diâmetro Sucção: ${suctionDiameter * 1000} mm</li>
-            <li>Diâmetro Recalque: ${dischargeDiameter * 1000} mm</li>
-            <li>Queda de Pressão em Equipamentos: ${equipmentDrop} kPa</li>
-            <li>Queda em Válvula de Controle: ${controlValveDrop} kPa</li>
-            <li>Elevação: ${elevation} m</li>
-            <li>Altura na Sucção: ${suctionHeight} m</li>
-            <li>Cotovelos 90°: ${elbows}</li>
-            <li>Válvulas Gaveta: ${gateValves}</li>
-            <li>Válvulas Retenção: ${checkValves}</li>
-            <li>Válvulas Globo: ${globeValves}</li>
-            <li>Válvulas Esfera: ${ballValves}</li>
-            <li>K Adicional: ${extraK}</li>
-            <li>NPSHr: ${npshr} m</li>
-            <li>Alvo Velocidade Sucção: ${suctionVelocityTarget} m/s</li>
-            <li>Alvo Velocidade Recalque: ${dischargeVelocityTarget} m/s</li>
-            <li>Material do Tanque: ASTM A516 Gr 55</li>
-          </ul>
-          <h3>Propriedades da Água</h3>
-          <ul>
-            <li>Densidade: ${rho.toFixed(1)} kg/m³</li>
-            <li>Viscosidade: ${mu.toFixed(6)} Pa·s</li>
-            <li>Calor Específico: ${cp} J/(kg·K)</li>
-            <li>Pressão de Vapor: ${Pv.toFixed(0)} Pa</li>
-          </ul>
-          <h3>Resultados do Cálculo</h3>
-          <ul>
-            <li>Vazão: ${flow.toFixed(2)} m³/h</li>
-            <li>Altura Manométrica Total: ${finalHead.toFixed(2)} m</li>
-            <li>Potência do Eixo: ${power.toFixed(2)} kW</li>
-            <li>Eficiência da Bomba: ${efficiency * 100} %</li>
-            <li>Velocidade Sucção: ${velocitySuction.toFixed(2)} m/s ${suctionVelocityAlert ? '- ' + suctionVelocityAlert : ''}</li>
-            <li>Velocidade Recalque: ${velocityDischarge.toFixed(2)} m/s ${dischargeVelocityAlert ? '- ' + dischargeVelocityAlert : ''}</li>
-            <li>NPSHa: ${npsha.toFixed(2)} m ${npshaStatus.replace(/<[^>]+>/g, '')}</li>
-          </ul>
-          <h3>Sugestão de Modelos de Bomba</h3>
-          <ul>
-            ${pumpSuggestions.split('\n').map(s => s ? `<li>${s}</li>` : '').join('')}
-            <li>Nota: Sugestões são indicativas. Consulte catálogos de fabricantes para seleção final.</li>
-          </ul>
-          <h3>Cálculos e Fórmulas</h3>
-          <ul>
-            <li><strong>Vazão (Recirculação):</strong> Q = max((q * L) / (1000 * cp * ΔT) * 3600, V * n)
-              <ul>
-                <li>Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h⁻¹).</li>
-                <li>Exemplo: Para vazão de 53,25 m³/h, considera-se perda térmica de 20 W/m em um anel de 204 m com ΔT = 5 °C, resultando em Q = (20 * 204) / (1000 * 4180 * 5) * 3600 = 53,25 m³/h, prevalecendo sobre a renovação do tanque (0 m³ * 1 h⁻¹).</li>
-                <li>Fonte: ASHRAE Handbook - HVAC Systems and Equipment.</li>
-              </ul>
-            </li>
-            <li><strong>Vazão (Consumo):</strong> Q = (P * 1000 * S) / (1000 * cp * ΔT) * 3600
-              <ul><li>Onde: P = Carga térmica (kW), S = Fator de simultaneidade, cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C).</li>
-                <li>Fonte: ABNT NBR 16401-1.</li></ul>
-            </li>
-            <li><strong>Altura Manométrica Total:</strong> Ht = Hs + hf + hm + he
-              <ul>
-                <li>Onde: Hs = Altura estática (m), hf = Perda por fricção (m), hm = Perdas menores (m), he = Queda em equipamentos (m).</li>
-                <li>Nota: A altura manométrica total de ${finalHead.toFixed(2)} m já inclui a margem de 15% para evitar subdimensionamento do motor na seleção comercial.</li>
-                <li>Fonte: Darcy-Weisbach Equation, ASHRAE.</li>
-              </ul>
-            </li>
-            <li><strong>Potência:</strong> P = (ρ * g * Q * Ht) / (η * 1000)
-              <ul><li>Onde: ρ = Densidade (kg/m³), g = Aceleração gravitacional (m/s²), Q = Vazão (m³/s), Ht = Altura total (m), η = Eficiência.</li>
-                <li>Fonte: ABNT NBR 11381.</li></ul>
-            </li>
-            <li><strong>NPSHa:</strong> NPSHa = (Patm / (ρ * g)) + hs - (Pv / (ρ * g)) - hfs - (vs² / (2 * g))
-              <ul><li>Onde: Patm = Pressão atmosférica (Pa), hs = Altura de sucção (m), Pv = Pressão de vapor (Pa), hfs = Perda por fricção na sucção (m), vs = Velocidade na sucção (m/s).</li>
-                <li>Fonte: ASHRAE Handbook - Pumping Systems.</li></ul>
-            </li>
-          </ul>
-          <h3>Referências</h3>
-          <ul>
-            <li>ABNT NBR 16401-1: Instalações de ar-condicionado - Sistemas centrais e unitários.</li>
-            <li>ABNT NBR 11381: Dimensionamento de sistemas de bombeamento.</li>
-            <li>ASHRAE Handbook - HVAC Systems and Equipment (2020).</li>
-            <li>ASHRAE Handbook - Pumping Systems (2019).</li>
-          </ul>
-        </body>
-        </html>
-      `;
+      // Gerando o PDF com jsPDF
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
 
-      // Abrindo em uma nova janela
-      const newWindow = window.open('', '_blank');
-      if (newWindow) {
-        newWindow.document.write(memorialContent);
-        newWindow.document.close();
-        console.log('Memorial aberto em nova janela');
-        status.textContent = 'Memorial aberto em nova janela!';
-      } else {
-        console.error('Falha ao abrir nova janela. Verifique as configurações de popup.');
-        status.textContent = 'Erro: Não foi possível abrir o memorial. Desative bloqueadores de popup e tente novamente.';
+        // Configurações de margens
+        const marginLeft = 20;
+        const marginRight = 20;
+        const marginTop = 25;
+        const marginBottom = 25;
+        const pageWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const textWidth = pageWidth - marginLeft - marginRight; // 170mm
+
+        let y = marginTop;
+
+        // Título
+        doc.setFont('Arial', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(26, 60, 94); // Azul elegante (#1a3c5e)
+        const title = 'Memorial de Cálculo - Dimensionamento de Bomba';
+        const titleWidth = doc.getTextWidth(title);
+        doc.text(title, (pageWidth - titleWidth) / 2, y); // Centralizado
+        y += 5; // Espaço após o título
+
+        // Data e hora
+        doc.setFont('Arial', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        const dateTimeText = `Data: ${date}   Hora: ${time}`;
+        doc.text(dateTimeText, marginLeft, y);
+        y += 5; // Espaço após data/hora
+
+        // Linha separadora
+        doc.setLineWidth(0.3); // 1pt ≈ 0.3mm
+        doc.setDrawColor(0, 0, 0); // Preto
+        doc.line(marginLeft, y, marginLeft + textWidth, y); // Linha de 170mm
+        y += 5; // Espaço após a linha
+
+        // Função para adicionar seção
+        function addSection(title, items) {
+          if (y > pageHeight - marginBottom - 20) {
+            doc.addPage();
+            y = marginTop;
+          }
+
+          // Título da seção
+          doc.setFont('Arial', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(0, 0, 0);
+          doc.text(title, marginLeft, y);
+          y += 5; // Espaço após o título
+
+          // Itens da seção
+          items.forEach(item => {
+            const splitText = doc.splitTextToSize(`• ${item}`, textWidth);
+            splitText.forEach(line => {
+              if (y > pageHeight - marginBottom - 5) {
+                doc.addPage();
+                y = marginTop;
+              }
+              doc.text(line, marginLeft, y);
+              y += 5; // Espaço entre linhas
+            });
+          });
+          y += 5; // Espaço após a seção
+          return y;
+        }
+
+        // Dados de Entrada
+        const inputItems = [
+          `Tipo de Serviço: ${serviceType}`,
+          `Temperatura da Água: ${waterTemp} °C`,
+          `Vazão: ${flow.toFixed(2)} m³/h (${flowOrigin})`,
+          `Rendimento da Bomba: ${efficiency * 100} %`,
+          `Margem de Projeto em H: ${headMargin * 100} %`,
+          `Altura Estática: ${staticHead} m`,
+          `Comprimento Sucção: ${suctionLength} m`,
+          `Comprimento Recalque: ${dischargeLength} m`,
+          `Diâmetro Sucção: ${suctionDiameter * 1000} mm`,
+          `Diâmetro Recalque: ${dischargeDiameter * 1000} mm`,
+          `Queda de Pressão em Equipamentos: ${equipmentDrop} kPa`,
+          `Queda em Válvula de Controle: ${controlValveDrop} kPa`,
+          `Elevação: ${elevation} m`,
+          `Altura na Sucção: ${suctionHeight} m`,
+          `Cotovelos 90°: ${elbows}`,
+          `Válvulas Gaveta: ${gateValves}`,
+          `Válvulas Retenção: ${checkValves}`,
+          `Válvulas Globo: ${globeValves}`,
+          `Válvulas Esfera: ${ballValves}`,
+          `K Adicional: ${extraK}`,
+          `NPSHr: ${npshr} m`,
+          `Alvo Velocidade Sucção: ${suctionVelocityTarget} m/s`,
+          `Alvo Velocidade Recalque: ${dischargeVelocityTarget} m/s`
+        ];
+        y = addSection('Dados de Entrada', inputItems);
+
+        // Propriedades da Água
+        const propItems = [
+          `Densidade: ${rho.toFixed(1)} kg/m³`,
+          `Viscosidade: ${mu.toFixed(6)} Pa·s`,
+          `Calor Específico: ${cp} J/(kg·K)`,
+          `Pressão de Vapor: ${Pv.toFixed(0)} Pa`
+        ];
+        y = addSection('Propriedades da Água', propItems);
+
+        // Resultados do Cálculo
+        const resultItems = [
+          `Vazão: ${flow.toFixed(2)} m³/h`,
+          `Altura Manométrica Total: ${finalHead.toFixed(2)} m (inclui margem de ${headMargin * 100}%; sem margem: ${totalHead.toFixed(2)} m)`,
+          `Potência do Eixo: ${power.toFixed(2)} kW`,
+          `Eficiência da Bomba: ${efficiency * 100} %`,
+          `Velocidade Sucção: ${velocitySuction.toFixed(2)} m/s ${suctionVelocityAlert}`,
+          `Velocidade Recalque: ${velocityDischarge.toFixed(2)} m/s ${dischargeVelocityAlert}`,
+          `NPSHa: ${npsha.toFixed(2)} m ${npshaStatus}`
+        ];
+        y = addSection('Resultados do Cálculo', resultItems);
+
+        // Sugestões de Bombas
+        const suggestions = pumpDatabase.filter(pump => 
+          pump.flow >= flow * 0.8 && pump.flow <= flow * 1.2 &&
+          pump.head >= finalHead * 0.8 && pump.head <= finalHead * 1.2
+        );
+        const suggestionItems = suggestions.length > 0
+          ? suggestions.map(pump => `${pump.model} - Vazão: ${pump.flow} m³/h, HMT: ${pump.head} m, Potência: ${pump.power} kW, Material: ${pump.material}, Aplicação: ${pump.application}`)
+          : ['Nenhuma bomba encontrada com os parâmetros calculados. Consulte catálogos dos fabricantes.'];
+        y = addSection('Sugestões de Bombas', suggestionItems);
+
+        // Cálculos e Fórmulas
+        const formulaItems = [
+          `Vazão (Recirculação): Q = max((q x L) / (1000 x cp x Delta T) x 3600, V x n)`,
+          `Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), Delta T = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h^-1).`,
+          `Fonte: ASHRAE Handbook - HVAC Systems and Equipment.`,
+          `Vazão (Consumo): Q = (P x 1000 x S) / (1000 x cp x Delta T) x 3600`,
+          `Onde: P = Carga térmica (kW), S = Fator de simultaneidade, cp = Calor específico (J/(kg·K)), Delta T = Variação de temperatura (°C).`,
+          `Fonte: ABNT NBR 16401-1.`,
+          `Altura Manométrica Total: Ht = Hs + hf + hm + he`,
+          `Onde: Hs = Altura estática (m), hf = Perda por fricção (m), hm = Perdas menores (m), he = Queda em equipamentos (m).`,
+          `Fonte: Darcy-Weisbach Equation, ASHRAE.`,
+          `Potência: P = (rho x g x Q x Ht) / (eta x 1000)`,
+          `Onde: rho = Densidade (kg/m³), g = Aceleração gravitacional (m/s²), Q = Vazão (m³/s), Ht = Altura total (m), eta = Eficiência.`,
+          `Fonte: ABNT NBR 11381.`,
+          `NPSHa: NPSHa = (Patm / (rho x g)) + hs - (Pv / (rho x g)) - hfs - (vs^2 / (2 x g))`,
+          `Onde: Patm = Pressão atmosférica (Pa), hs = Altura de sucessão (m), Pv = Pressão de vapor (Pa), hfs = Perda por fricção na sucção (m), vs = Velocidade na sucção (m/s).`,
+          `Fonte: ASHRAE Handbook - Pumping Systems.`
+        ];
+        y = addSection('Cálculos e Fórmulas', formulaItems);
+
+        // Referências
+        const referenceItems = [
+          `ABNT NBR 16401-1: Instalações de ar-condicionado - Sistemas centrais e unitários.`,
+          `ABNT NBR 11381: Dimensionamento de sistemas de bombeamento.`,
+          `ABNT NBR 10897: Sistemas de proteção contra incêndio por chuveiros automáticos - Requisitos.`,
+          `ASHRAE Handbook - HVAC Systems and Equipment (2020).`,
+          `ASHRAE Handbook - Pumping Systems (2019).`
+        ];
+        y = addSection('Referências', referenceItems);
+
+        // Salvando o PDF
+        doc.save('Memorial_Calculo_Bomba.pdf');
+        console.log('PDF gerado e salvo');
+        status.textContent = 'Memorial de Cálculo gerado como PDF!';
+      } catch (e) {
+        console.error('Erro ao gerar PDF:', e);
+        status.textContent = 'Erro ao gerar o PDF. Verifique o console para mais detalhes.';
       }
     });
+
+    document.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('input', () => {
+        if ($('autoCalculate').checked) calculate();
+      });
+    });
+    $('calc').addEventListener('click', calculate);
+    $('applyPreset').addEventListener('click', applyPreset);
 
     updateForm();
     updateRoughness();
     calculate();
-    updateDateTime(); // Inicializa a data e hora no carregamento
+    updateDateTime();
   </script>
 </body>
 </html>
