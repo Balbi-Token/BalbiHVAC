@@ -1,74 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><script type="text/javascript">
-  var gk_isXlsx = false;
-  var gk_xlsxFileLookup = {};
-  var gk_fileData = {};
-  function filledCell(cell) {
-    return cell !== '' && cell != null;
-  }
-  function loadFileData(filename) {
-    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-      try {
-        var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-        var firstSheetName = workbook.SheetNames[0];
-        var worksheet = workbook.Sheets[firstSheetName];
-        var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-        var filteredData = jsonData.filter(row => row.some(filledCell));
-        var headerRowIndex = filteredData.findIndex((row, index) =>
-          row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-        );
-        if (headerRowIndex === -1 || headerRowIndex > 25) {
-          headerRowIndex = 0;
-        }
-        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-        return csv;
-      } catch (e) {
-        console.error(e);
-        return "";
-      }
-    }
-    return gk_fileData[filename] || "";
-  }
-</script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -777,7 +707,7 @@
             <li>Temperatura da Água: ${waterTemp} °C</li>
             <li>Vazão: ${flow.toFixed(2)} m³/h</li>
             <li>Rendimento da Bomba: ${efficiency * 100} %</li>
-            <li>Margem de Projeto em H: ${headMargin * 100} %</li>
+            <li>Margem de Projeto em H: ${headMargin * 100} % (aplicada na altura manométrica total de ${finalHead.toFixed(2)} m, inclui 15% para evitar subdimensionamento do motor)</li>
             <li>Altura Estática: ${staticHead} m</li>
             <li>Comprimento Sucção: ${suctionLength} m</li>
             <li>Comprimento Recalque: ${dischargeLength} m</li>
@@ -796,6 +726,7 @@
             <li>NPSHr: ${npshr} m</li>
             <li>Alvo Velocidade Sucção: ${suctionVelocityTarget} m/s</li>
             <li>Alvo Velocidade Recalque: ${dischargeVelocityTarget} m/s</li>
+            <li>Material do Tanque: ASTM A516 Gr 55</li>
           </ul>
           <h3>Propriedades da Água</h3>
           <ul>
@@ -817,16 +748,22 @@
           <h3>Cálculos e Fórmulas</h3>
           <ul>
             <li><strong>Vazão (Recirculação):</strong> Q = max((q * L) / (1000 * cp * ΔT) * 3600, V * n)
-              <ul><li>Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h⁻¹).</li>
-                <li>Fonte: ASHRAE Handbook - HVAC Systems and Equipment.</li></ul>
+              <ul>
+                <li>Onde: q = Perda térmica (W/m), L = Comprimento do anel (m), cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C), V = Volume do tanque (m³), n = Taxa de renovação (h⁻¹).</li>
+                <li>Exemplo: Para vazão de 53,25 m³/h, considera-se perda térmica de 20 W/m em um anel de 204 m com ΔT = 5 °C, resultando em Q = (20 * 204) / (1000 * 4180 * 5) * 3600 = 53,25 m³/h, prevalecendo sobre a renovação do tanque (0 m³ * 1 h⁻¹).</li>
+                <li>Fonte: ASHRAE Handbook - HVAC Systems and Equipment.</li>
+              </ul>
             </li>
             <li><strong>Vazão (Consumo):</strong> Q = (P * 1000 * S) / (1000 * cp * ΔT) * 3600
               <ul><li>Onde: P = Carga térmica (kW), S = Fator de simultaneidade, cp = Calor específico (J/(kg·K)), ΔT = Variação de temperatura (°C).</li>
                 <li>Fonte: ABNT NBR 16401-1.</li></ul>
             </li>
             <li><strong>Altura Manométrica Total:</strong> Ht = Hs + hf + hm + he
-              <ul><li>Onde: Hs = Altura estática (m), hf = Perda por fricção (m), hm = Perdas menores (m), he = Queda em equipamentos (m).</li>
-                <li>Fonte: Darcy-Weisbach Equation, ASHRAE.</li></ul>
+              <ul>
+                <li>Onde: Hs = Altura estática (m), hf = Perda por fricção (m), hm = Perdas menores (m), he = Queda em equipamentos (m).</li>
+                <li>Nota: A altura manométrica total de ${finalHead.toFixed(2)} m já inclui a margem de 15% para evitar subdimensionamento do motor na seleção comercial.</li>
+                <li>Fonte: Darcy-Weisbach Equation, ASHRAE.</li>
+              </ul>
             </li>
             <li><strong>Potência:</strong> P = (ρ * g * Q * Ht) / (η * 1000)
               <ul><li>Onde: ρ = Densidade (kg/m³), g = Aceleração gravitacional (m/s²), Q = Vazão (m³/s), Ht = Altura total (m), η = Eficiência.</li>
