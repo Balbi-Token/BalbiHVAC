@@ -321,6 +321,10 @@
           <summary>Propriedades da água (estimadas pela temperatura)</summary>
           <pre id="props" class="mono" style="white-space: pre-wrap"></pre>
         </details>
+        <details style="margin-top: 12px">
+          <summary>Sugestão de Modelos de Bomba</summary>
+          <div id="pumpSuggestions" class="mono" style="white-space: pre-wrap"></div>
+        </details>
       </div>
     </div>
   </div>
@@ -338,6 +342,8 @@
       <ul id="memorial-props"></ul>
       <h3>Resultados do Cálculo</h3>
       <ul id="memorial-results"></ul>
+      <h3>Sugestão de Modelos de Bomba</h3>
+      <ul id="memorial-pump-suggestions"></ul>
       <h3>Cálculos e Fórmulas</h3>
       <ul>
         <li><strong>Vazão (Recirculação):</strong> Q = max((q * L) / (1000 * cp * ΔT) * 3600, V * n)
@@ -408,6 +414,90 @@
     const $ = id => document.getElementById(id);
     const out = $('out');
     const status = document.querySelector('.status');
+
+    // Banco de dados de bombas (exemplo simplificado)
+    const pumpsDatabase = [
+      {
+        manufacturer: "Grundfos",
+        model: "NB 80-200/219",
+        flowMin: 40,
+        flowMax: 60,
+        headMin: 35,
+        headMax: 50,
+        power: 11,
+        npshr: 2.5,
+        efficiency: 80,
+        type: "Centrifugal, End-Suction"
+      },
+      {
+        manufacturer: "KSB",
+        model: "Etabloc 80-200",
+        flowMin: 45,
+        flowMax: 65,
+        headMin: 30,
+        headMax: 55,
+        power: 15,
+        npshr: 3.0,
+        efficiency: 82,
+        type: "Centrifugal, Close-Coupled"
+      },
+      {
+        manufacturer: "Wilo",
+        model: "Stratos 80/1-12",
+        flowMin: 50,
+        flowMax: 70,
+        headMin: 40,
+        headMax: 60,
+        power: 7.5,
+        npshr: 2.8,
+        efficiency: 85,
+        type: "Inline, High-Efficiency"
+      },
+      {
+        manufacturer: "Schneider",
+        model: "BC 65-250",
+        flowMin: 30,
+        flowMax: 50,
+        headMin: 25,
+        headMax: 45,
+        power: 9.2,
+        npshr: 2.7,
+        efficiency: 78,
+        type: "Centrifugal, End-Suction"
+      },
+      {
+        manufacturer: "Grundfos",
+        model: "CR 45-2",
+        flowMin: 35,
+        flowMax: 55,
+        headMin: 20,
+        headMax: 40,
+        power: 5.5,
+        npshr: 2.0,
+        efficiency: 79,
+        type: "Vertical Multistage"
+      }
+      // Adicione mais modelos conforme necessário
+    ];
+
+    // Função para sugerir bombas com base nos cálculos
+    function suggestPump(flow, head, power, npsha, npshr) {
+      const suggestions = pumpsDatabase.filter(pump => {
+        const flowMatch = flow >= pump.flowMin && flow <= pump.flowMax;
+        const headMatch = head >= pump.headMin && head <= pump.headMax;
+        const powerMatch = pump.power >= power * 0.9; // Margem de 10% para potência
+        const npshMatch = pump.npshr <= npsha * 1.1; // NPSHr deve ser menor que 1.1 * NPSHa
+        return flowMatch && headMatch && powerMatch && npshMatch;
+      }).sort((a, b) => b.efficiency - a.efficiency); // Prioriza maior eficiência
+
+      if (suggestions.length === 0) {
+        return "Nenhum modelo encontrado no banco de dados. Consulte catálogos de fabricantes para seleção precisa.";
+      }
+
+      return suggestions.slice(0, 3).map(pump => // Limita a 3 sugestões
+        `${pump.manufacturer} ${pump.model} (${pump.type}): Vazão ${pump.flowMin}-${pump.flowMax} m³/h, Altura ${pump.headMin}-${pump.headMax} m, Potência ${pump.power} kW, NPSHr ${pump.npshr} m, Eficiência ${pump.efficiency}%`
+      ).join('\n');
+    }
 
     // Função para atualizar data e hora
     function updateDateTime() {
@@ -553,6 +643,9 @@
         const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `<span class="warn">Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)</span>` : '';
         const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `<span class="warn">Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)</span>` : '';
 
+        // Sugestão de bombas
+        const pumpSuggestions = suggestPump(flow, finalHead, power, npsha, npshr);
+
         out.innerHTML = `
           <table>
             <tr><th>Vazão (m³/h)</th><td>${flow.toFixed(2)}</td></tr>
@@ -565,9 +658,11 @@
           </table>
         `;
         $('props').textContent = `Densidade: ${rho.toFixed(1)} kg/m³\nViscosidade: ${mu.toFixed(6)} Pa·s\nCalor específico: ${cp.toFixed(0)} J/(kg·K)\nPressão de vapor: ${Pv.toFixed(0)} Pa`;
+        $('pumpSuggestions').textContent = pumpSuggestions + '\n\nNota: Sugestões são indicativas. Consulte catálogos de fabricantes para seleção final.';
         status.textContent = 'Cálculo concluído.';
       } catch (e) {
         status.textContent = 'Erro no cálculo: ' + e.message;
+        $('pumpSuggestions').textContent = 'Erro no cálculo. Não foi possível sugerir bombas.';
       }
     }
 
@@ -638,6 +733,9 @@
       const power = (rho * g * (flow / 3600) * finalHead) / (efficiency * 1000);
       const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)` : '';
       const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)` : '';
+
+      // Sugestão de bombas para o memorial
+      const pumpSuggestions = suggestPump(flow, finalHead, power, npsha, npshr);
 
       // Obtendo data e hora atuais
       const now = new Date();
@@ -744,6 +842,11 @@
             <li>Velocidade Sucção: ${velocitySuction.toFixed(2)} m/s ${suctionVelocityAlert ? '- ' + suctionVelocityAlert : ''}</li>
             <li>Velocidade Recalque: ${velocityDischarge.toFixed(2)} m/s ${dischargeVelocityAlert ? '- ' + dischargeVelocityAlert : ''}</li>
             <li>NPSHa: ${npsha.toFixed(2)} m ${npshaStatus.replace(/<[^>]+>/g, '')}</li>
+          </ul>
+          <h3>Sugestão de Modelos de Bomba</h3>
+          <ul>
+            ${pumpSuggestions.split('\n').map(s => s ? `<li>${s}</li>` : '').join('')}
+            <li>Nota: Sugestões são indicativas. Consulte catálogos de fabricantes para seleção final.</li>
           </ul>
           <h3>Cálculos e Fórmulas</h3>
           <ul>
