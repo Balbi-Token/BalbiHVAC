@@ -1,0 +1,545 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Dimensionamento de Bomba – HVAC (água quente/fria/recirculação)</title>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+    * { box-sizing: border-box }
+    body { margin: 0; background: linear-gradient(180deg,#0b1025,#0f172a 35%,#0b1025); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif }
+    header { gap: 16px; padding: 32px 16px; background: rgba(59, 130, 246, 0.15); border-bottom: 1px solid rgba(148,163,184,.12); min-height: 80px; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px }
+    h1 { margin: 0; font-size: 20px; font-weight: 800 }
+    .card { background: rgba(17,24,39,.88); backdrop-filter: blur(6px); border: 1px solid rgba(148,163,184,.12); padding: 16px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35) }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px }
+    @media(min-width:1000px) { .grid { grid-template-columns: 1fr 1fr } }
+    fieldset { border: 1px solid rgba(148,163,184,.18); border-radius: 12px; padding: 12px; margin-bottom: 12px }
+    legend { padding: 0 8px; color: var(--muted); font-weight: 600 }
+    label { display: block; margin: 8px 0 4px }
+    input, select, button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(148,163,184,.25); background: #0b1220; color: var(--ink) }
+    input::placeholder { color: #6b7280 }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px }
+    .btn { background: var(--accent); color: #00131a; font-weight: 800; border: none; cursor: pointer }
+    .btn:active { transform: translateY(1px) }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,.25); font-size: 12px; color: var(--muted) }
+    table { width: 100%; border-collapse: collapse }
+    th, td { padding: 10px; border-bottom: 1px solid rgba(148,163,184,.18); text-align: left }
+    .mono { font-family: ui-monospace, SFMO-Regular, Consolas, Monaco, monospace }
+    .ok { color: var(--ok) } .warn { color: var(--warn) } .bad { color: var(--bad) }
+    .status { margin-top: 8px; font-size: 13px; color: var(--muted) }
+    .no-print { display: block }
+    @media print { .no-print { display: none !important } body { background: #fff; color: #000 } .card { box-shadow: none; border: none } }
+    @page { size: A4; margin: 12mm; }
+    .error { color: var(--bad); font-size: 13px; margin-top: 4px; }
+    footer { text-align: center; padding: 16px 0; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header class="no-print">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <img src="logobalbi.png" alt="Balbi Engenharia" style="height: 44px; width: auto; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.35)">
+      <h1>Calculadora de Dimensionamento de Bomba – HVAC (água quente/fria/recirculação)</h1>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 16px">
+      <button class="btn" type="button" id="btnPrint">Imprimir / PDF</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <form id="pumpForm">
+          <fieldset class="no-print">
+            <legend>Presets rápidos</legend>
+            <div class="row3">
+              <div>
+                <label for="preset">Escolha um preset</label>
+                <select id="preset">
+                  <option value="">— Selecionar —</option>
+                  <option value="chilled">Água gelada 7/12 ºC (consumo por carga)</option>
+                  <option value="hot">Água quente 70/80 ºC (consumo por carga)</option>
+                  <option value="recirc">Recirculação 60/65 ºC (anel)</option>
+                  <option value="cond">Água de condensação 30/35 ºC</option>
+                </select>
+              </div>
+              <div>
+                <label>&nbsp;</label>
+                <button class="btn" type="button" id="applyPreset">Aplicar preset</button>
+              </div>
+              <div>
+                <label class="pill">Os presets já preenchem dados e chamam Calcular.</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Serviço e Fluido</legend>
+            <div class="row">
+              <div>
+                <label for="serviceType">Tipo de serviço</label>
+                <select id="serviceType" onchange="updateForm()">
+                  <option value="recirc">Recirculação (anel)</option>
+                  <option value="consumption">Atendimento de consumo</option>
+                  <option value="condensation">Água de condensação</option>
+                </select>
+              </div>
+              <div>
+                <label for="waterTemp">Temperatura da água (°C)</label>
+                <input id="waterTemp" type="number" step="0.1" value="80" min="0" required />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="flow">Vazão (m³/h)</label>
+                <input id="flow" type="number" step="0.1" value="0" min="0" readonly />
+              </div>
+              <div>
+                <label for="efficiency">Rendimento estimado da bomba (%)</label>
+                <input id="efficiency" type="number" step="1" value="80" min="1" max="100" required />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="headMargin">Margem de projeto em H (%)</label>
+                <input id="headMargin" type="number" step="1" value="15" min="0" required />
+              </div>
+              <div>
+                <label><input type="checkbox" id="autoCalculate" checked> Calcular automaticamente a cada mudança</label>
+                <button type="button" class="btn" id="calc">Calcular agora</button>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset id="recircBlock">
+            <legend>Dados de Recirculação (Q calculada por perdas térmicas)</legend>
+            <div class="row3">
+              <div>
+                <label for="loopLength">Comprimento efetivo do anel (ida+volta) [m]</label>
+                <input id="loopLength" type="number" step="1" value="204" min="0" required />
+              </div>
+              <div>
+                <label for="thermalLoss">Perda térmica média do anel (W/m)</label>
+                <input id="thermalLoss" type="number" step="0.1" value="20" min="0" required />
+              </div>
+              <div>
+                <label for="deltaT">Delta T alvo na recirculação (°C)</label>
+                <input id="deltaT" type="number" step="0.1" value="5" min="0.1" required />
+              </div>
+            </div>
+            <div class="row3">
+              <div>
+                <label for="tankVolume">Volume do tanque (litros)</label>
+                <input id="tankVolume" type="number" step="100" value="0" min="0" required />
+              </div>
+              <div>
+                <label for="turnoverRate">Taxa de renovação do tanque (vezes/h)</label>
+                <select id="turnoverRate">
+                  <option value="1" selected>1</option>
+                  <option value="1.5">1,5</option>
+                  <option value="2">2</option>
+                </select>
+                <div class="status">ASHRAE recomenda 1–2 renovações/h para tanques grandes.</div>
+              </div>
+              <div></div>
+            </div>
+          </fieldset>
+
+          <fieldset id="supplyBlock" style="display:none">
+            <legend>Dados de Consumo (Q calculada por carga térmica)</legend>
+            <div class="row3">
+              <div>
+                <label for="thermalLoad">Carga térmica total (kW)</label>
+                <input id="thermalLoad" type="number" step="0.1" value="250" min="0" required />
+              </div>
+              <div>
+                <label for="consumptionDeltaT">Delta T de projeto (°C)</label>
+                <input id="consumptionDeltaT" type="number" step="0.1" value="5" min="0.1" required />
+              </div>
+              <div>
+                <label for="simultaneity">Fator de simultaneidade (0–1)</label>
+                <input id="simultaneity" type="number" step="0.01" value="1" min="0" max="1" required />
+              </div>
+            </div>
+            <div class="status">Obs.: Vazão será Q = (Carga × simultaneidade) ÷ (ρ × cp × ΔT)</div>
+          </fieldset>
+
+          <fieldset id="condensingBlock" style="display:none">
+            <legend>Dados de Água de Condensação</legend>
+            <div class="row3">
+              <div>
+                <label for="condenserFlow">Fluxo mínimo do condensador (m³/h)</label>
+                <input id="condenserFlow" type="number" step="0.1" value="10" min="0" required />
+              </div>
+              <div>
+                <label for="condensationDeltaT">Delta T de projeto (°C)</label>
+                <input id="condensationDeltaT" type="number" step="0.1" value="5" min="0.1" required />
+              </div>
+              <div></div>
+            </div>
+            <div class="status">Obs.: Vazão será no mínimo o fluxo especificado pelo condensador.</div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Hidráulica – Tubulação e Acessórios</legend>
+            <div class="row3">
+              <div>
+                <label for="suctionDiameter">Diâmetro interno sucção (mm)</label>
+                <input id="suctionDiameter" type="number" value="100" min="1" required />
+              </div>
+              <div>
+                <label for="dischargeDiameter">Diâmetro interno recalque (mm)</label>
+                <input id="dischargeDiameter" type="number" value="80" min="1" required />
+              </div>
+              <div>
+                <label for="lossMethod">Método de perda de carga</label>
+                <select id="lossMethod">
+                  <option value="darcy">Darcy–Weisbach (Swamee–Jain)</option>
+                  <option value="hazen">Hazen–Williams</option>
+                </select>
+              </div>
+            </div>
+            <div class="row3">
+              <div>
+                <label for="suctionLength">Comprimento sucção (m)</label>
+                <input id="suctionLength" type="number" value="4" min="0" required />
+              </div>
+              <div>
+                <label for="dischargeLength">Comprimento recalque (m)</label>
+                <input id="dischargeLength" type="number" value="200" min="0" required />
+              </div>
+              <div>
+                <label for="staticHead">Altura estática (m)</label>
+                <input id="staticHead" type="number" step="0.1" value="2" min="0" required />
+              </div>
+            </div>
+            <div class="row3">
+              <div>
+                <label for="pipeMaterial">Material predominante</label>
+                <select id="pipeMaterial" onchange="updateRoughness()">
+                  <option value="steel">Aço carbono</option>
+                  <option value="stainless">Aço inox</option>
+                  <option value="ductile">Ferro dúctil</option>
+                  <option value="cast">Ferro fundido</option>
+                  <option value="copper">Cobre</option>
+                  <option value="pvc">PVC/PPR/PEAD</option>
+                  <option value="other">Outro (informar rugosidade)</option>
+                </select>
+              </div>
+              <div id="roughnessDiv" style="display: none;">
+                <label for="roughness">Rugosidade absoluta ε (mm) [se Outro]</label>
+                <input id="roughness" type="number" step="0.001" placeholder="ex.: 0,045" min="0" />
+              </div>
+              <div id="hazenDiv" style="display: none;">
+                <label for="hazenC">Coef. Hazen–Williams C (se Hazen)</label>
+                <input id="hazenC" type="number" step="1" value="120" min="1" required />
+              </div>
+            </div>
+            <details class="no-print">
+              <summary>Acessórios (K-values típicos)</summary>
+              <div class="row3" style="margin-top: 10px">
+                <div>
+                  <label for="elbows">Cotovelos 90° (0,9 cada)</label>
+                  <input id="elbows" type="number" value="6" min="0" />
+                </div>
+                <div>
+                  <label for="gateValves">Válvulas gaveta abertas (0,15 cada)</label>
+                  <input id="gateValves" type="number" value="0" min="0" />
+                </div>
+                <div>
+                  <label for="checkValves">Válvulas retenção swing (2,0 cada)</label>
+                  <input id="checkValves" type="number" value="0" min="0" />
+                </div>
+              </div>
+              <div class="row3">
+                <div>
+                  <label for="globeValves">Válvulas globo abertas (10 cada)</label>
+                  <input id="globeValves" type="number" value="0" min="0" />
+                </div>
+                <div>
+                  <label for="ballValves">Válvulas esfera abertas (0,05 cada)</label>
+                  <input id="ballValves" type="number" value="0" min="0" />
+                </div>
+                <div>
+                  <label for="extraK">K adicional (informar total)</label>
+                  <input id="extraK" type="number" step="0.01" value="0" min="0" />
+                </div>
+              </div>
+            </details>
+          </fieldset>
+
+          <fieldset>
+            <legend>Equipamentos e Sucção</legend>
+            <div class="row3">
+              <div>
+                <label for="equipmentDrop">Queda de pressão em equipamentos (kPa)</label>
+                <input id="equipmentDrop" type="number" step="0.1" value="0" min="0" />
+              </div>
+              <div>
+                <label for="controlValveDrop">Queda mínima em válvula de controle (kPa)</label>
+                <input id="controlValveDrop" type="number" step="0.1" value="0" min="0" />
+              </div>
+              <div>
+                <label for="elevation">Elevação do local (m) e altura na sucção (m)</label>
+                <div class="row" style="grid-template-columns: 1fr 1fr; gap: 6px">
+                  <input id="elevation" type="number" value="0" min="0" />
+                  <input id="suctionHeight" type="number" step="0.1" value="1.0" min="0" />
+                </div>
+              </div>
+            </div>
+            <div class="row3">
+              <div>
+                <label for="npshr">NPSHr da bomba (m) (opcional)</label>
+                <input id="npshr" type="number" step="0.1" placeholder="se conhecido" min="0" value="3" />
+              </div>
+              <div>
+                <label for="suctionVelocityTarget">Alvo de velocidade sucção (m/s)</label>
+                <input id="suctionVelocityTarget" type="number" step="0.1" value="0.1" min="0.1" required />
+                <div class="status">ASHRAE recomenda 1,5–2,5 m/s.</div>
+              </div>
+              <div>
+                <label for="dischargeVelocityTarget">Alvo de velocidade recalque (m/s)</label>
+                <input id="dischargeVelocityTarget" type="number" step="0.1" value="0.1" min="0.1" required />
+                <div class="status">ASHRAE recomenda 2,0–3,0 m/s.</div>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">Resultados</h2>
+        <div class="status">Preencha os dados e clique em Calcular, ou ative "Calcular automaticamente".</div>
+        <div id="out" aria-live="polite" style="margin-top: 8px">—</div>
+        <details style="margin-top: 12px">
+          <summary>Propriedades da água (estimadas pela temperatura)</summary>
+          <pre id="props" class="mono" style="white-space: pre-wrap"></pre>
+        </details>
+        <div id="pumpSuggestion" style="margin-top: 12px">
+          <h3>Sugestão de Bomba</h3>
+          <p id="pumpModel">—</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer>
+    Vinícius Balbi - Projetista HVAC
+  </footer>
+
+  <script>
+    const g = 9.80665;
+    const $ = id => document.getElementById(id);
+    const out = $('out');
+    const status = document.querySelector('.status');
+
+    function updateForm() {
+      const serviceType = $('serviceType').value;
+      $('recircBlock').style.display = serviceType === 'recirc' ? 'block' : 'none';
+      $('supplyBlock').style.display = serviceType === 'consumption' ? 'block' : 'none';
+      $('condensingBlock').style.display = serviceType === 'condensation' ? 'block' : 'none';
+      if ($('autoCalculate').checked) calculate();
+    }
+
+    function updateRoughness() {
+      const material = $('pipeMaterial').value;
+      $('roughnessDiv').style.display = material === 'other' ? 'block' : 'none';
+      $('hazenDiv').style.display = $('lossMethod').value === 'hazen' ? 'block' : 'none';
+      if ($('autoCalculate').checked) calculate();
+    }
+
+    function applyPreset() {
+      const preset = $('preset').value;
+      if (preset === 'chilled') {
+        $('serviceType').value = 'consumption';
+        $('waterTemp').value = 10;
+        $('thermalLoad').value = 250;
+        $('consumptionDeltaT').value = 5;
+        $('simultaneity').value = 0.8;
+      } else if (preset === 'hot') {
+        $('serviceType').value = 'consumption';
+        $('waterTemp').value = 75;
+        $('thermalLoad').value = 180;
+        $('consumptionDeltaT').value = 10;
+        $('simultaneity').value = 0.9;
+      } else if (preset === 'recirc') {
+        $('serviceType').value = 'recirc';
+        $('waterTemp').value = 62.5;
+        $('loopLength').value = 204;
+        $('thermalLoss').value = 20;
+        $('deltaT').value = 5;
+        $('tankVolume').value = 0;
+        $('turnoverRate').value = 1;
+      } else if (preset === 'cond') {
+        $('serviceType').value = 'condensation';
+        $('waterTemp').value = 32.5;
+        $('condenserFlow').value = 10;
+        $('condensationDeltaT').value = 5;
+      }
+      updateForm();
+      calculate();
+    }
+
+    $('btnPrint').addEventListener('click', () => window.print());
+
+    function calculate() {
+      try {
+        const serviceType = $('serviceType').value;
+        let flow = parseFloat($('flow').value) || 0;
+
+        if (serviceType === 'recirc') {
+          const loopLength = parseFloat($('loopLength').value) || 0;
+          const thermalLoss = parseFloat($('thermalLoss').value) || 0;
+          const deltaT = parseFloat($('deltaT').value) || 0;
+          const tankVolume = parseFloat($('tankVolume').value) / 1000 || 0;
+          const turnoverRate = parseFloat($('turnoverRate').value) || 1;
+          flow = Math.max((thermalLoss * loopLength) / (1000 * 4180 * deltaT) * 3600, tankVolume * turnoverRate);
+          $('flow').value = flow.toFixed(2);
+        } else if (serviceType === 'consumption') {
+          const thermalLoad = parseFloat($('thermalLoad').value) || 0;
+          const consumptionDeltaT = parseFloat($('consumptionDeltaT').value) || 0;
+          const simultaneity = parseFloat($('simultaneity').value) || 0;
+          flow = (thermalLoad * 1000 * simultaneity) / (1000 * 4180 * consumptionDeltaT) * 3600;
+          $('flow').value = flow.toFixed(2);
+        } else if (serviceType === 'condensation') {
+          flow = parseFloat($('condenserFlow').value) || 0;
+          $('flow').value = flow;
+        }
+
+        const headMargin = parseFloat($('headMargin').value) / 100 || 0;
+        const staticHead = parseFloat($('staticHead').value) || 0;
+        const suctionLength = parseFloat($('suctionLength').value) || 0;
+        const dischargeLength = parseFloat($('dischargeLength').value) || 0;
+        const suctionDiameter = parseFloat($('suctionDiameter').value) / 1000 || 0;
+        const dischargeDiameter = parseFloat($('dischargeDiameter').value) / 1000 || 0;
+        const equipmentDrop = parseFloat($('equipmentDrop').value) || 0;
+        const controlValveDrop = parseFloat($('controlValveDrop').value) || 0;
+        const elevation = parseFloat($('elevation').value) || 0;
+        const suctionHeight = parseFloat($('suctionHeight').value) || 0;
+        const elbows = parseFloat($('elbows').value) || 0;
+        const gateValves = parseFloat($('gateValves').value) || 0;
+        const checkValves = parseFloat($('checkValves').value) || 0;
+        const globeValves = parseFloat($('globeValves').value) || 0;
+        const ballValves = parseFloat($('ballValves').value) || 0;
+        const extraK = parseFloat($('extraK').value) || 0;
+        const efficiency = parseFloat($('efficiency').value) / 100 || 0;
+        const npshr = parseFloat($('npshr').value) || 3;
+        const waterTemp = parseFloat($('waterTemp').value) || 60;
+        const suctionVelocityTarget = parseFloat($('suctionVelocityTarget').value) || 1.5;
+        const dischargeVelocityTarget = parseFloat($('dischargeVelocityTarget').value) || 2.0;
+
+        const rho = 1000 * (1 - ((waterTemp + 288.9414) / (508929.2 * (waterTemp + 68.12963))) * Math.pow((waterTemp - 3.9863), 2));
+        const mu = 2.414e-5 * Math.pow(10, 247.8 / (waterTemp + 133.15));
+        const cp = 4180;
+        const A = 8.07131, B = 1730.63, C = 233.426;
+        const PmmHg = Math.pow(10, A - B / (C + waterTemp));
+        const Pv = PmmHg * 133.322;
+
+        const velocitySuction = (flow / 3600) / (Math.PI * Math.pow(suctionDiameter, 2) / 4);
+        const velocityDischarge = (flow / 3600) / (Math.PI * Math.pow(dischargeDiameter, 2) / 4);
+
+        let roughness = 0.000045;
+        if ($('pipeMaterial').value === 'stainless') roughness = 0.000015;
+        else if ($('pipeMaterial').value === 'ductile') roughness = 0.00026;
+        else if ($('pipeMaterial').value === 'cast') roughness = 0.00026;
+        else if ($('pipeMaterial').value === 'copper') roughness = 0.0000015;
+        else if ($('pipeMaterial').value === 'pvc') roughness = 0.0000015;
+        else if ($('pipeMaterial').value === 'other') roughness = parseFloat($('roughness').value) / 1000 || 0.000045;
+
+        const reSuction = (rho * velocitySuction * suctionDiameter) / mu;
+        const reDischarge = (rho * velocityDischarge * dischargeDiameter) / mu;
+        const fSuction = reSuction >= 4000 ? 0.25 / Math.pow(Math.log10(roughness / (3.7 * suctionDiameter) + 5.74 / Math.pow(reSuction, 0.9)), 2) : 64 / reSuction;
+        const fDischarge = reDischarge >= 4000 ? 0.25 / Math.pow(Math.log10(roughness / (3.7 * dischargeDiameter) + 5.74 / Math.pow(reDischarge, 0.9)), 2) : 64 / reDischarge;
+
+        const frictionHeadSuction = fSuction * suctionLength / suctionDiameter * Math.pow(velocitySuction, 2) / (2 * g);
+
+        const atmPressure = 101325 * Math.pow(1 - 2.25577e-5 * elevation, 5.2559);
+        const npsha = (atmPressure / (rho * g) + suctionHeight - Pv / (rho * g) - frictionHeadSuction - Math.pow(velocitySuction, 2) / (2 * g));
+        const npshaStatus = npsha < 0 ? '<span class="bad">Erro: NPSHa negativo.</span>' : (npsha < 1.1 * npshr ? '<span class="bad">Atenção: NPSHa < 1,1×NPSHr</span>' : '<span class="ok">OK</span>');
+
+        const frictionHead = (fSuction * suctionLength / suctionDiameter + fDischarge * dischargeLength / dischargeDiameter) * Math.pow(velocityDischarge, 2) / (2 * g);
+        const minorLosses = (elbows * 0.9 + gateValves * 0.15 + checkValves * 2.0 + globeValves * 10 + ballValves * 0.05 + extraK) * Math.pow(velocityDischarge, 2) / (2 * g);
+        const equipmentHead = (equipmentDrop + controlValveDrop) / (rho * g) * 1000;
+        const totalHead = staticHead + frictionHead + minorLosses + equipmentHead;
+        const finalHead = totalHead * (1 + headMargin);
+
+        const power = (rho * g * (flow / 3600) * finalHead) / (efficiency * 1000);
+
+        const suctionVelocityAlert = velocitySuction > suctionVelocityTarget ? `<span class="warn">Atenção: Velocidade de sucção (${velocitySuction.toFixed(2)} m/s) acima do alvo (${suctionVelocityTarget} m/s)</span>` : '';
+        const dischargeVelocityAlert = velocityDischarge > dischargeVelocityTarget ? `<span class="warn">Atenção: Velocidade de recalque (${velocityDischarge.toFixed(2)} m/s) acima do alvo (${dischargeVelocityTarget} m/s)</span>` : '';
+
+        let pumpSuggestion = "Nenhum modelo sugerido.";
+        if (flow >= 53 && flow <= 70 && finalHead >= 30 && finalHead <= 50 && efficiency >= 0.75) {
+          pumpSuggestion = "Modelo sugerido: Texius TBHCM-4-20M (1,0 CV, 220V, até 80°C, 30 mca) com inversor de frequência. Alternativa: Grundfos TP 50/30.";
+        }
+
+        out.innerHTML = `
+          <table>
+            <tr><th>Vazão (m³/h)</th><td>${flow.toFixed(2)}</td></tr>
+            <tr><th>Altura Manométrica Total (m)</th><td>${finalHead.toFixed(2)}</td></tr>
+            <tr><th>Potência do Eixo (kW)</th><td>${power.toFixed(2)}</td></tr>
+            <tr><th>Eficiência da Bomba (%)</th><td>${(efficiency * 100).toFixed(0)}</td></tr>
+            <tr><th>Velocidade Sucção (m/s)</th><td>${velocitySuction.toFixed(2)} ${suctionVelocityAlert}</td></tr>
+            <tr><th>Velocidade Recalque (m/s)</th><td>${velocityDischarge.toFixed(2)} ${dischargeVelocityAlert}</td></tr>
+            <tr><th>NPSHa (m)</th><td>${npsha.toFixed(2)} ${npshaStatus}</td></tr>
+          </table>
+        `;
+        $('props').textContent = `Densidade: ${rho.toFixed(1)} kg/m³\nViscosidade: ${mu.toFixed(6)} Pa·s\nCalor específico: ${cp.toFixed(0)} J/(kg·K)\nPressão de vapor: ${Pv.toFixed(0)} Pa`;
+        $('pumpModel').textContent = pumpSuggestion;
+        status.textContent = 'Cálculo concluído.';
+      } catch (e) {
+        status.textContent = 'Erro no cálculo: ' + e.message;
+      }
+    }
+
+    document.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('input', () => {
+        if ($('autoCalculate').checked) calculate();
+      });
+    });
+    $('calc').addEventListener('click', calculate);
+    $('applyPreset').addEventListener('click', applyPreset);
+    updateForm();
+    updateRoughness();
+    calculate();
+  </script>
+</body>
+</html>
